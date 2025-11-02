@@ -2,23 +2,6 @@
 
 A comprehensive telephony web application for comparing and analyzing multiple AMD detection strategies with real-time monitoring and analytics.
 
-## 📋 Table of Contents
-
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Features](#features)
-- [AMD Strategies](#amd-strategies)
-- [Technology Stack](#technology-stack)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [API Documentation](#api-documentation)
-- [Security](#security)
-- [Testing](#testing)
-- [Performance](#performance)
-
----
-
 ## 🎯 Overview
 
 This application provides a unified platform to test, compare, and analyze four different Answering Machine Detection strategies:
