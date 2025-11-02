@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Backend Logging</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border-left: 4px solid #3b82f6;
+        }
+        .success {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+        .error {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        pre {
+            overflow-x: auto;
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .badge.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Backend Logging Verification</h1>
+        <p>Test that all AMD strategies properly save detection results</p>
+
+        <div style="margin: 20px 0;">
+            <button onclick="loadComprehensiveData()">1. Load Comprehensive Test Data</button>
+            <button onclick="verifyAllCalls()">2. Verify All Calls</button>
+            <button onclick="checkByStrategy()">3. Check By Strategy</button>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function showResult(title, content, isSuccess = true) {
+            const resultDiv = document.getElementById('result');
+            const className = isSuccess ? 'success' : 'error';
+            resultDiv.innerHTML = `
+                <div class="result ${className}">
+                    <h3>${title}</h3>
+                    ${content}
+                </div>
+            `;
+        }
+
+        async function loadComprehensiveData() {
+            try {
+                showResult('⏳ Loading...', '<p>Creating 25 comprehensive test calls...</p>');
+                
+                const response = await fetch('/api/seed/comprehensive', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResult('✅ Data Loaded Successfully!', `
+                        <p><strong>Records Created:</strong> ${data.recordsCreated}</p>
+                        <h4>Breakdown:</h4>
+                        <ul>
+                            <li>Twilio Native: ${data.statistics.byStrategy.twilio_native}</li>
+                            <li>Hugging Face: ${data.statistics.byStrategy.hf_service}</li>
+                            <li>Gemini Flash: ${data.statistics.byStrategy.gemini_flash}</li>
+                            <li>Jambonz SIP: ${data.statistics.byStrategy.jambonz_sip}</li>
+                        </ul>
+                        <p><strong>Next:</strong> Click "Verify All Calls" to check data quality</p>
+                    `);
+                } else {
+                    showResult('⚠️ Load Failed', `<pre>${JSON.stringify(data, null, 2)}</pre>`, false);
+                }
+            } catch (error) {
+                showResult('❌ Error', `<p>${error.message}</p>`, false);
+            }
+        }
+
+        async function verifyAllCalls() {
+            try {
+                showResult('⏳ Verifying...', '<p>Checking all calls for complete data...</p>');
+                
+                const response = await fetch('/api/calls');
+                const data = await response.json();
+                
+                let html = '<h4>Verification Results:</h4>';
+                let issues = [];
+                let success = 0;
+                
+                data.items.forEach((call, index) => {
+                    let hasResult = false;
+                    let hasCallSid = false;
+                    let amdStatus = 'N/A';
+                    let confidence = 'N/A';
+                    
+                    // Check rawResult
+                    if (call.rawResult) {
+                        try {
+                            const result = typeof call.rawResult === 'string' 
+                                ? JSON.parse(call.rawResult) 
+                                : call.rawResult;
+                            
+                            if (result.amdStatus) {
+                                hasResult = true;
+                                amdStatus = result.amdStatus;
+                                confidence = result.confidence || 'N/A';
+                            }
+                        } catch (e) {
+                            issues.push(`Call ${index + 1}: Failed to parse rawResult`);
+                        }
+                    } else if (call.status === 'error') {
+                        hasResult = true; // Errors are expected to have no result
+                        amdStatus = 'error';
+                    } else {
+                        issues.push(`Call ${index + 1}: Missing rawResult`);
+                    }
+                    
+                    // Check callSid
+                    if (call.callSid) {
+                        hasCallSid = true;
+                    } else if (call.status !== 'error') {
+                        issues.push(`Call ${index + 1}: Missing callSid`);
+                    }
+                    
+                    if (hasResult && (hasCallSid || call.status === 'error')) {
+                        success++;
+                    }
+                });
+                
+                const successRate = ((success / data.items.length) * 100).toFixed(1);
+                
+                html += `
+                    <p><strong>Total Calls:</strong> ${data.items.length}</p>
+                    <p><strong>Complete Data:</strong> ${success} (${successRate}%)</p>
+                `;
+                
+                if (issues.length > 0) {
+                    html += '<h4>Issues Found:</h4><ul>';
+                    issues.forEach(issue => {
+                        html += `<li>${issue}</li>`;
+                    });
+                    html += '</ul>';
+                } else {
+                    html += '<p><strong>✅ All calls have complete data!</strong></p>';
+                }
+                
+                html += '<p><strong>Next:</strong> Click "Check By Strategy" for detailed breakdown</p>';
+                
+                showResult(
+                    issues.length === 0 ? '✅ Verification Passed!' : '⚠️ Issues Found',
+                    html,
+                    issues.length === 0
+                );
+            } catch (error) {
+                showResult('❌ Error', `<p>${error.message}</p>`, false);
+            }
+        }
+
+        async function checkByStrategy() {
+            try {
+                showResult('⏳ Analyzing...', '<p>Checking data by strategy...</p>');
+                
+                const response = await fetch('/api/calls');
+                const data = await response.json();
+                
+                const byStrategy = {};
+                
+                data.items.forEach(call => {
+                    if (!byStrategy[call.strategy]) {
+                        byStrategy[call.strategy] = {
+                            total: 0,
+                            withResult: 0,
+                            withCallSid: 0,
+                            human: 0,
+                            machine: 0,
+                            errors: 0
+                        };
+                    }
+                    
+                    const stats = byStrategy[call.strategy];
+                    stats.total++;
+                    
+                    if (call.callSid) stats.withCallSid++;
+                    
+                    if (call.rawResult) {
+                        try {
+                            const result = typeof call.rawResult === 'string' 
+                                ? JSON.parse(call.rawResult) 
+                                : call.rawResult;
+                            
+                            if (result.amdStatus) {
+                                stats.withResult++;
+                                if (result.amdStatus === 'human') stats.human++;
+                                if (result.amdStatus === 'machine') stats.machine++;
+                            }
+                        } catch (e) {}
+                    }
+                    
+                    if (call.status === 'error') stats.errors++;
+                });
+                
+                let html = '<table><thead><tr>';
+                html += '<th>Strategy</th><th>Total</th><th>With Result</th><th>With Call SID</th>';
+                html += '<th>Human</th><th>Machine</th><th>Errors</th><th>Status</th>';
+                html += '</tr></thead><tbody>';
+                
+                Object.entries(byStrategy).forEach(([strategy, stats]) => {
+                    const resultRate = ((stats.withResult / stats.total) * 100).toFixed(0);
+                    const sidRate = ((stats.withCallSid / stats.total) * 100).toFixed(0);
+                    const isGood = resultRate >= 80 && sidRate >= 80;
+                    
+                    html += '<tr>';
+                    html += `<td><strong>${strategy}</strong></td>`;
+                    html += `<td>${stats.total}</td>`;
+                    html += `<td>${stats.withResult} (${resultRate}%)</td>`;
+                    html += `<td>${stats.withCallSid} (${sidRate}%)</td>`;
+                    html += `<td>${stats.human}</td>`;
+                    html += `<td>${stats.machine}</td>`;
+                    html += `<td>${stats.errors}</td>`;
+                    html += `<td><span class="badge ${isGood ? 'success' : 'error'}">${isGood ? '✅ Good' : '⚠️ Issues'}</span></td>`;
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                html += '<p style="margin-top: 20px;"><strong>✅ Verification Complete!</strong></p>';
+                html += '<p>Visit <a href="/history" target="_blank">History Page</a> to see the data in the UI</p>';
+                
+                showResult('📊 Strategy Breakdown', html);
+            } catch (error) {
+                showResult('❌ Error', `<p>${error.message}</p>`, false);
+            }
+        }
+    </script>
+</body>
+</html>

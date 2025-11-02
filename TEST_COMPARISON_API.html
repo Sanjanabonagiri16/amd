@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Comparison API</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button.success {
+            background: #10b981;
+        }
+        button.danger {
+            background: #ef4444;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border-left: 4px solid #3b82f6;
+        }
+        .success {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+        .error {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        pre {
+            overflow-x: auto;
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status.online {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.offline {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test Comparison API</h1>
+        <p>Verify that the Comparison page backend is working correctly</p>
+
+        <div style="margin: 20px 0;">
+            <button onclick="testComparisonAPI()">1. Test Comparison API</button>
+            <button onclick="loadSampleData()" class="success">2. Load Sample Data</button>
+            <button onclick="testAfterLoad()">3. Test After Loading</button>
+            <button onclick="openComparisonPage()">4. Open Comparison Page</button>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const BASE_URL = window.location.port === '3001' ? 'http://localhost:3001' : 'http://localhost:3000';
+
+        function showResult(title, content, isSuccess = true) {
+            const resultDiv = document.getElementById('result');
+            const className = isSuccess ? 'success' : 'error';
+            resultDiv.innerHTML = `
+                <div class="result ${className}">
+                    <h3>${title}</h3>
+                    ${content}
+                </div>
+            `;
+        }
+
+        async function testComparisonAPI() {
+            try {
+                showResult('⏳ Testing...', '<p>Fetching comparison data...</p>');
+                
+                const response = await fetch(`${BASE_URL}/api/comparison`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    let html = '<h4>✅ Comparison API is Working!</h4>';
+                    html += '<table>';
+                    html += '<tr><th>Metric</th><th>Value</th></tr>';
+                    html += `<tr><td>Total Calls</td><td>${data.overall.totalCalls}</td></tr>`;
+                    html += `<tr><td>Avg Accuracy</td><td>${data.overall.avgAccuracy}%</td></tr>`;
+                    html += `<tr><td>Avg Latency</td><td>${data.overall.avgLatency}s</td></tr>`;
+                    html += `<tr><td>Total Cost</td><td>$${data.overall.totalCost}</td></tr>`;
+                    html += `<tr><td>Strategies</td><td>${data.strategies.length}</td></tr>`;
+                    html += '</table>';
+                    
+                    if (data.strategies.length > 0) {
+                        html += '<h4>Strategies:</h4>';
+                        html += '<table>';
+                        html += '<tr><th>Strategy</th><th>Calls</th><th>Accuracy</th><th>Latency</th><th>Cost</th></tr>';
+                        data.strategies.forEach(s => {
+                            html += `<tr>
+                                <td>${s.strategy}</td>
+                                <td>${s.totalCalls}</td>
+                                <td>${s.avgAccuracy}%</td>
+                                <td>${s.avgLatency}s</td>
+                                <td>$${s.costPerCall}</td>
+                            </tr>`;
+                        });
+                        html += '</table>';
+                    } else {
+                        html += '<p><strong>⚠️ No strategies with data yet.</strong></p>';
+                        html += '<p>Click "Load Sample Data" to populate the database.</p>';
+                    }
+                    
+                    html += '<h4>Raw Response:</h4>';
+                    html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    
+                    showResult('✅ API Test Complete', html);
+                } else {
+                    showResult('❌ API Error', `<pre>${JSON.stringify(data, null, 2)}</pre>`, false);
+                }
+            } catch (error) {
+                showResult('❌ Error', `<p>${error.message}</p>`, false);
+            }
+        }
+
+        async function loadSampleData() {
+            try {
+                showResult('⏳ Loading...', '<p>Creating 25 sample calls...</p>');
+                
+                const response = await fetch(`${BASE_URL}/api/seed/comprehensive`, { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    let html = '<h4>✅ Sample Data Loaded!</h4>';
+                    html += `<p><strong>Records Created:</strong> ${data.recordsCreated}</p>`;
+                    html += '<h4>Breakdown:</h4>';
+                    html += '<table>';
+                    html += '<tr><th>Strategy</th><th>Calls</th></tr>';
+                    Object.entries(data.statistics.byStrategy).forEach(([strategy, count]) => {
+                        html += `<tr><td>${strategy}</td><td>${count}</td></tr>`;
+                    });
+                    html += '</table>';
+                    html += '<p><strong>Next:</strong> Click "Test After Loading" to verify the data.</p>';
+                    
+                    showResult('✅ Data Loaded', html);
+                } else {
+                    showResult('❌ Load Failed', `<pre>${JSON.stringify(data, null, 2)}</pre>`, false);
+                }
+            } catch (error) {
+                showResult('❌ Error', `<p>${error.message}</p>`, false);
+            }
+        }
+
+        async function testAfterLoad() {
+            try {
+                showResult('⏳ Testing...', '<p>Verifying comparison data after loading...</p>');
+                
+                // Wait 1 second for data to settle
+                await new Promise(r => setTimeout(r, 1000));
+                
+                const response = await fetch(`${BASE_URL}/api/comparison`);
+                const data = await response.json();
+                
+                if (data.success && data.overall.totalCalls > 0) {
+                    let html = '<h4>✅ Data Verified!</h4>';
+                    html += '<table>';
+                    html += '<tr><th>Check</th><th>Status</th></tr>';
+                    html += `<tr><td>Total Calls</td><td>✅ ${data.overall.totalCalls}</td></tr>`;
+                    html += `<tr><td>Strategies</td><td>✅ ${data.strategies.length}</td></tr>`;
+                    html += `<tr><td>Avg Accuracy</td><td>✅ ${data.overall.avgAccuracy}%</td></tr>`;
+                    
+                    const hasAllStrategies = data.strategies.length === 4;
+                    html += `<tr><td>All 4 Strategies</td><td>${hasAllStrategies ? '✅' : '❌'} ${data.strategies.length}/4</td></tr>`;
+                    
+                    const allHaveData = data.strategies.every(s => s.totalCalls > 0);
+                    html += `<tr><td>All Have Data</td><td>${allHaveData ? '✅' : '❌'}</td></tr>`;
+                    html += '</table>';
+                    
+                    html += '<h4>Strategy Details:</h4>';
+                    html += '<table>';
+                    html += '<tr><th>Strategy</th><th>Calls</th><th>Accuracy</th><th>Latency</th></tr>';
+                    data.strategies.forEach(s => {
+                        html += `<tr>
+                            <td>${s.strategy}</td>
+                            <td>${s.totalCalls}</td>
+                            <td>${s.avgAccuracy}%</td>
+                            <td>${s.avgLatency}s</td>
+                        </tr>`;
+                    });
+                    html += '</table>';
+                    
+                    html += '<p><strong>✅ Comparison API is working correctly!</strong></p>';
+                    html += '<p>Click "Open Comparison Page" to view in the UI.</p>';
+                    
+                    showResult('✅ Verification Complete', html);
+                } else if (data.overall.totalCalls === 0) {
+                    showResult('⚠️ No Data', '<p>No calls in database. Click "Load Sample Data" first.</p>', false);
+                } else {
+                    showResult('❌ Verification Failed', `<pre>${JSON.stringify(data, null, 2)}</pre>`, false);
+                }
+            } catch (error) {
+                showResult('❌ Error', `<p>${error.message}</p>`, false);
+            }
+        }
+
+        function openComparisonPage() {
+            window.open(`${BASE_URL}/compare`, '_blank');
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', () => {
+            setTimeout(testComparisonAPI, 500);
+        });
+    </script>
+</body>
+</html>

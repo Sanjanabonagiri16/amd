@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMD Dashboard - API Tester</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        button.danger {
+            background: #ef4444;
+        }
+        button.danger:hover {
+            background: #dc2626;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 6px;
+            border-left: 4px solid #3b82f6;
+        }
+        .success {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+        .error {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+        pre {
+            overflow-x: auto;
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status.online {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.offline {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #1f2937;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 AMD Dashboard API Tester</h1>
+        <p class="subtitle">Test backend endpoints and seed sample data</p>
+
+        <div class="section">
+            <h2>Server Status <span id="status" class="status offline">Checking...</span></h2>
+            <button onclick="checkServer()">Check Server</button>
+        </div>
+
+        <div class="section">
+            <h2>📊 Seed Sample Data</h2>
+            <p>Create 15 sample calls across all AMD strategies</p>
+            <button onclick="seedData()">Seed Data (POST /api/seed)</button>
+            <button class="danger" onclick="clearData()">Clear All Data (DELETE /api/seed)</button>
+        </div>
+
+        <div class="section">
+            <h2>🔍 Test Endpoints</h2>
+            <button onclick="testEndpoint('/api/calls')">GET /api/calls</button>
+            <button onclick="testEndpoint('/api/comparison')">GET /api/comparison</button>
+            <button onclick="testEndpoint('/api/analytics')">GET /api/analytics</button>
+        </div>
+
+        <div class="section">
+            <h2>🧪 Run Full Verification</h2>
+            <button onclick="runFullTest()">Run All Tests</button>
+        </div>
+
+        <div id="result"></div>
+    </div>
+
+    <script>
+        function showResult(title, data, isSuccess = true) {
+            const resultDiv = document.getElementById('result');
+            const className = isSuccess ? 'success' : 'error';
+            resultDiv.innerHTML = `
+                <div class="result ${className}">
+                    <h3>${title}</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                </div>
+            `;
+        }
+
+        async function checkServer() {
+            try {
+                const response = await fetch('/api/calls');
+                if (response.ok) {
+                    document.getElementById('status').textContent = 'Online';
+                    document.getElementById('status').className = 'status online';
+                    showResult('✅ Server Status', { status: 'online', message: 'Server is running!' });
+                } else {
+                    throw new Error('Server returned error');
+                }
+            } catch (error) {
+                document.getElementById('status').textContent = 'Offline';
+                document.getElementById('status').className = 'status offline';
+                showResult('❌ Server Status', { status: 'offline', error: error.message }, false);
+            }
+        }
+
+        async function seedData() {
+            try {
+                showResult('⏳ Seeding Data...', { status: 'in_progress' });
+                const response = await fetch('/api/seed', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResult('✅ Data Seeded Successfully!', data);
+                } else {
+                    showResult('⚠️ Seed Response', data, false);
+                }
+            } catch (error) {
+                showResult('❌ Seed Error', { error: error.message }, false);
+            }
+        }
+
+        async function clearData() {
+            if (!confirm('Are you sure you want to delete all call data?')) {
+                return;
+            }
+            
+            try {
+                showResult('⏳ Clearing Data...', { status: 'in_progress' });
+                const response = await fetch('/api/seed', { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showResult('✅ Data Cleared Successfully!', data);
+                } else {
+                    showResult('⚠️ Clear Response', data, false);
+                }
+            } catch (error) {
+                showResult('❌ Clear Error', { error: error.message }, false);
+            }
+        }
+
+        async function testEndpoint(endpoint) {
+            try {
+                showResult(`⏳ Testing ${endpoint}...`, { status: 'in_progress' });
+                const response = await fetch(endpoint);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult(`✅ ${endpoint}`, data);
+                } else {
+                    showResult(`❌ ${endpoint}`, data, false);
+                }
+            } catch (error) {
+                showResult(`❌ ${endpoint}`, { error: error.message }, false);
+            }
+        }
+
+        async function runFullTest() {
+            const results = {
+                timestamp: new Date().toISOString(),
+                tests: []
+            };
+
+            showResult('⏳ Running Full Verification...', { status: 'in_progress' });
+
+            // Test 1: Server health
+            try {
+                const response = await fetch('/api/calls');
+                results.tests.push({
+                    name: 'Server Health',
+                    status: response.ok ? 'PASS' : 'FAIL',
+                    endpoint: '/api/calls'
+                });
+            } catch (error) {
+                results.tests.push({
+                    name: 'Server Health',
+                    status: 'FAIL',
+                    error: error.message
+                });
+            }
+
+            // Test 2: Calls endpoint
+            try {
+                const response = await fetch('/api/calls');
+                const data = await response.json();
+                results.tests.push({
+                    name: 'Calls Endpoint',
+                    status: 'PASS',
+                    callCount: data.items?.length || 0
+                });
+            } catch (error) {
+                results.tests.push({
+                    name: 'Calls Endpoint',
+                    status: 'FAIL',
+                    error: error.message
+                });
+            }
+
+            // Test 3: Comparison endpoint
+            try {
+                const response = await fetch('/api/comparison');
+                const data = await response.json();
+                results.tests.push({
+                    name: 'Comparison Endpoint',
+                    status: data.success ? 'PASS' : 'FAIL',
+                    strategies: data.strategies?.length || 0
+                });
+            } catch (error) {
+                results.tests.push({
+                    name: 'Comparison Endpoint',
+                    status: 'FAIL',
+                    error: error.message
+                });
+            }
+
+            // Test 4: Analytics endpoint
+            try {
+                const response = await fetch('/api/analytics');
+                const data = await response.json();
+                results.tests.push({
+                    name: 'Analytics Endpoint',
+                    status: data.success ? 'PASS' : 'FAIL',
+                    strategies: data.strategies?.length || 0
+                });
+            } catch (error) {
+                results.tests.push({
+                    name: 'Analytics Endpoint',
+                    status: 'FAIL',
+                    error: error.message
+                });
+            }
+
+            // Summary
+            const passed = results.tests.filter(t => t.status === 'PASS').length;
+            const total = results.tests.length;
+            results.summary = {
+                passed,
+                failed: total - passed,
+                total,
+                successRate: `${Math.round((passed / total) * 100)}%`
+            };
+
+            const allPassed = passed === total;
+            showResult(
+                allPassed ? '✅ All Tests Passed!' : '⚠️ Some Tests Failed',
+                results,
+                allPassed
+            );
+        }
+
+        // Check server on load
+        window.addEventListener('load', checkServer);
+    </script>
+</body>
+</html>
